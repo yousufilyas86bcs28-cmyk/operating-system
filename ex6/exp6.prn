@@ -1,0 +1,563 @@
+Script started on Wednesday 09 September 2026 03:03:43 PM IST
+[24bcs053@mepcolinux ex6]$cat banker.c
+#include <stdio.h>
+#include <stdbool.h>
+
+#define MAX_PROCESSES 20
+#define MAX_RESOURCES 20
+
+int n, m;
+int allocation[MAX_PROCESSES][MAX_RESOURCES];
+int maximum[MAX_PROCESSES][MAX_RESOURCES];
+int need[MAX_PROCESSES][MAX_RESOURCES];
+int available[MAX_RESOURCES];
+
+/* Calculate Need = Max - Allocation */
+void calculateNeed() {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            need[i][j] = maximum[i][j] - allocation[i][j];
+        }
+    }
+}
+
+/* Display Need Matrix */
+void printNeedMatrix() {
+    printf("\nREMAINING NEED MATRIX (Maximum - Allocation)\n\n");
+
+    printf("Process\t");
+    for (int j = 0; j < m; j++)
+        printf("Res%d\t", j + 1);
+    printf("\n");
+
+    for (int i = 0; i < n; i++) {
+        printf("P%d\t", i + 1);
+
+        for (int j = 0; j < m; j++)
+            printf("%d\t", need[i][j]);
+
+        printf("\n");
+    }
+}
+
+/*
+   Safety Algorithm
+   Returns true if system is safe
+*/
+bool isSafeState(bool display) {
+    int work[MAX_RESOURCES];
+    bool finish[MAX_PROCESSES] = {false};
+    int safeSequence[MAX_PROCESSES];
+    int count = 0;
+
+    /* Initially Work = Available */
+    for (int j = 0; j < m; j++)
+        work[j] = available[j];
+
+    if (display) {
+        printf("\nStarting Work vector = ( ");
+        for (int j = 0; j < m; j++)
+            printf("%d ", work[j]);
+        printf(")\n");
+    }
+
+    while (count < n) {
+        bool found = false;
+
+        for (int i = 0; i < n; i++) {
+
+            if (!finish[i]) {
+                bool canFinish = true;
+
+                /* Check if Need <= Work */
+                for (int j = 0; j < m; j++) {
+                    if (need[i][j] > work[j]) {
+                        canFinish = false;
+                        break;
+                    }
+                }
+
+                if (canFinish) {
+
+                    if (display) {
+                        printf("\nP%d can complete because Need <= Work\n", i + 1);
+
+                        printf("Work before P%d completes: ( ", i + 1);
+                        for (int j = 0; j < m; j++)
+                            printf("%d ", work[j]);
+                        printf(")\n");
+                    }
+
+                    /*
+                       When process finishes,
+                       it releases its allocated resources
+                    */
+                    for (int j = 0; j < m; j++) {
+                        work[j] += allocation[i][j];
+                    }
+
+                    if (display) {
+                        printf("P%d releases its allocated resources.\n", i + 1);
+
+                        printf("Updated Work vector: ( ");
+                        for (int j = 0; j < m; j++)
+                            printf("%d ", work[j]);
+                        printf(")\n");
+                    }
+
+                    safeSequence[count++] = i;
+                    finish[i] = true;
+                    found = true;
+                }
+            }
+        }
+
+        /* No remaining process can finish */
+        if (!found) {
+            if (display)
+                printf("\nUNSAFE STATE! No valid safe sequence exists.\n");
+
+            return false;
+        }
+    }
+
+    if (display) {
+        printf("\n====================================\n");
+        printf("THE SYSTEM IS IN A SAFE STATE\n");
+        printf("Safe Execution Order: ");
+
+        for (int i = 0; i < n; i++) {
+            printf("P%d", safeSequence[i] + 1);
+
+            if (i != n - 1)
+                printf(" -> ");
+        }
+
+        printf("\n====================================\n");
+    }
+
+    return true;
+}
+
+/* Handle a resource request */
+void resourceRequest(int process) {
+    int request[MAX_RESOURCES];
+
+    printf("\nEnter resource request for Process P%d:\n", process + 1);
+
+    for (int j = 0; j < m; j++) {
+        printf("Units of Res%d: ", j + 1);
+        scanf("%d", &request[j]);
+    }
+
+    /* Check Request <= Need */
+    for (int j = 0; j < m; j++) {
+        if (request[j] > need[process][j]) {
+            printf("\nREQUEST REJECTED!\n");
+            printf("This request exceeds the process's remaining Need.\n");
+            return;
+        }
+    }
+
+    /* Check Request <= Available */
+    for (int j = 0; j < m; j++) {
+        if (request[j] > available[j]) {
+            printf("\nREQUEST CANNOT BE GRANTED CURRENTLY.\n");
+            printf("Not enough resources are currently available.\n");
+            return;
+        }
+    }
+
+    /*
+       Temporarily allocate resources
+    */
+    for (int j = 0; j < m; j++) {
+        available[j] -= request[j];
+        allocation[process][j] += request[j];
+        need[process][j] -= request[j];
+    }
+
+    printf("\nVerifying system safety after temporary allocation...\n");
+
+    /* Run Safety Algorithm */
+    if (isSafeState(false)) {
+
+        printf("\nREQUEST APPROVED!\n");
+        printf("The request has been granted and the system remains in a Safe state.\n");
+
+        isSafeState(true);
+
+    } else {
+
+        /* Rollback changes */
+        for (int j = 0; j < m; j++) {
+            available[j] += request[j];
+            allocation[process][j] -= request[j];
+            need[process][j] += request[j];
+        }
+
+        printf("\nREQUEST REJECTED!\n");
+        printf("Approving this request would lead to an Unsafe system state.\n");
+    }
+}
+
+int main() {
+    int choice;
+    char workGiven;
+
+    printf("================================================\n");
+    printf("         BANKER'S ALGORITHM SIMULATION          \n");
+    printf("================================================\n");
+
+    /* Number of processes and resources */
+    printf("\nEnter number of processes: ");
+    scanf("%d", &n);
+
+    printf("Enter number of resource types: ");
+    scanf("%d", &m);
+
+    if (n > MAX_PROCESSES || m > MAX_RESOURCES || n <= 0 || m <= 0) {
+        printf("Error: Invalid count for processes or resources!\n");
+        return 1;
+    }
+
+    /* Allocation Matrix */
+    printf("\n--- INPUT ALLOCATION MATRIX ---\n");
+    for (int i = 0; i < n; i++) {
+        printf("\nFor Process P%d:\n", i + 1);
+
+        for (int j = 0; j < m; j++) {
+            printf("Current allocation of Res%d: ", j + 1);
+            scanf("%d", &allocation[i][j]);
+        }
+    }
+
+    /* Max Matrix */
+    printf("\n--- INPUT MAXIMUM DEMAND MATRIX ---\n");
+    for (int i = 0; i < n; i++) {
+        printf("\nFor Process P%d:\n", i + 1);
+
+        for (int j = 0; j < m; j++) {
+            printf("Maximum demand for Res%d: ", j + 1);
+            scanf("%d", &maximum[i][j]);
+
+            if (maximum[i][j] < allocation[i][j]) {
+                printf("Error: Maximum demand cannot be less than current allocation!\n");
+                return 1;
+            }
+        }
+    }
+
+    /* Calculate Need */
+    calculateNeed();
+
+    /*
+       Ask whether Work / Available is already given
+    */
+    printf("\nIs the AVAILABLE (Work) vector given? (y/n): ");
+    scanf(" %c", &workGiven);
+
+    if (workGiven == 'y' || workGiven == 'Y') {
+
+        printf("\nEnter the AVAILABLE (Work) vector:\n");
+
+        for (int j = 0; j < m; j++) {
+            printf("Res%d: ", j + 1);
+            scanf("%d", &available[j]);
+        }
+
+    } else {
+
+        int total[MAX_RESOURCES] = {0};
+        int allocatedSum[MAX_RESOURCES] = {0};
+
+        printf("\nAVAILABLE vector is not provided.\n");
+        printf("Enter TOTAL resources to compute AVAILABLE.\n");
+
+        for (int j = 0; j < m; j++) {
+            printf("Total instances of Res%d: ", j + 1);
+            scanf("%d", &total[j]);
+        }
+
+        /* Calculate sum of allocated resources */
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < m; j++) {
+                allocatedSum[j] += allocation[i][j];
+            }
+        }
+
+        /* Available = Total - Allocated */
+        for (int j = 0; j < m; j++) {
+            available[j] = total[j] - allocatedSum[j];
+
+            if (available[j] < 0) {
+                printf("Error: Total resources cannot be less than allocated resources!\n");
+                return 1;
+            }
+        }
+
+        printf("\nComputed AVAILABLE (Work) vector = ( ");
+        for (int j = 0; j < m; j++)
+            printf("%d ", available[j]);
+        printf(")\n");
+    }
+
+    /* Display Need */
+    printNeedMatrix();
+
+    /* Initial Banker's Algorithm check */
+    printf("\n\n===== PERFORMING INITIAL SAFETY CHECK =====\n");
+    bool initialSafe = isSafeState(true);
+
+    if (!initialSafe) {
+        printf("\nThe initial state is Unsafe. Resource requests cannot be processed safely.\n");
+        return 0;
+    }
+
+    /*
+       Keep accepting resource requests
+    */
+    while (1) {
+
+        printf("\n================================================\n");
+        printf("            RESOURCE REQUEST MENU               \n");
+        printf("================================================\n");
+        printf("1. Request Resources\n");
+        printf("2. Display Current State\n");
+        printf("3. Run Safety Check Again\n");
+        printf("4. Exit\n");
+
+        printf("\nEnter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+
+            case 1: {
+                int team;
+
+                printf("\nWhich process is requesting resources? (1 to %d): ", n);
+                scanf("%d", &team);
+
+                if (team < 1 || team > n) {
+                    printf("Invalid process number!\n");
+                } else {
+                    resourceRequest(team - 1);
+                }
+
+                break;
+            }
+
+            case 2:
+                printf("\nCurrent AVAILABLE (Work) vector = ( ");
+                for (int j = 0; j < m; j++)
+                    printf("%d ", available[j]);
+                printf(")\n");
+
+                printNeedMatrix();
+                break;
+
+            case 3:
+                isSafeState(true);
+                break;
+
+            case 4:
+                printf("\nExiting Banker's Algorithm Simulation. Goodbye!\n");
+                return 0;
+
+            default:
+                printf("Invalid choice! Please try again.\n");
+        }
+    }
+
+    return 0;
+}
+              
+[24bcs053@mepcolinux ex6]$g++ banker.c
+[24bcs053@mepcolinux ex6]$./a.out
+================================================
+         BANKER'S ALGORITHM SIMULATION          
+================================================
+
+Enter number of processes: 5
+Enter number of resource types: 3
+
+--- INPUT ALLOCATION MATRIX ---
+
+For Process P1:
+Current allocation of Res1: 0 1 0
+Current allocation of Res2: Current allocation of Res3: 
+For Process P2:
+Current allocation of Res1: 2 0 0
+Current allocation of Res2: Current allocation of Res3: 
+For Process P3:
+Current allocation of Res1: 3 0 2
+Current allocation of Res2: Current allocation of Res3: 
+For Process P4:
+Current allocation of Res1: 0 0 2
+Current allocation of Res2: Current allocation of Res3: 
+For Process P5:
+Current allocation of Res1:  1
+Current allocation of Res2: Current allocation of Res3: 
+--- INPUT MAXIMUM DEMAND MATRIX ---
+
+For Process P1:
+Maximum demand for Res1: 7 5 3
+Maximum demand for Res2: Maximum demand for Res3: 
+For Process P2:
+Maximum demand for Res1: 3 2 2
+Maximum demand for Res2: Maximum demand for Res3: 
+For Process P3:
+Maximum demand for Res1: 9 0 2
+Maximum demand for Res2: Maximum demand for Res3: 
+For Process P4:
+Maximum demand for Res1: 2 2 2
+Maximum demand for Res2: Maximum demand for Res3: 
+For Process P5:
+Maximum demand for Res1: 4 3 3
+Maximum demand for Res2: Maximum demand for Res3: 
+Is the AVAILABLE (Work) vector given? (y/n): y
+
+Enter the AVAILABLE (Work) vector:
+Res1: 3 3 2
+Res2: Res3: 
+REMAINING NEED MATRIX (Maximum - Allocation)
+
+Process	Res1	Res2	Res3	
+P1	7	4	3	
+P2	1	2	2	
+P3	6	0	0	
+P4	2	2	0	
+P5	2	2	2	
+
+
+===== PERFORMING INITIAL SAFETY CHECK =====
+
+Starting Work vector = ( 3 3 2 )
+
+P2 can complete because Need <= Work
+Work before P2 completes: ( 3 3 2 )
+P2 releases its allocated resources.
+Updated Work vector: ( 5 3 2 )
+
+P4 can complete because Need <= Work
+Work before P4 completes: ( 5 3 2 )
+P4 releases its allocated resources.
+Updated Work vector: ( 5 3 4 )
+
+P5 can complete because Need <= Work
+Work before P5 completes: ( 5 3 4 )
+P5 releases its allocated resources.
+Updated Work vector: ( 7 4 5 )
+
+P1 can complete because Need <= Work
+Work before P1 completes: ( 7 4 5 )
+P1 releases its allocated resources.
+Updated Work vector: ( 7 5 5 )
+
+P3 can complete because Need <= Work
+Work before P3 completes: ( 7 5 5 )
+P3 releases its allocated resources.
+Updated Work vector: ( 10 5 7 )
+
+====================================
+THE SYSTEM IS IN A SAFE STATE
+Safe Execution Order: P2 -> P4 -> P5 -> P1 -> P3
+====================================
+
+================================================
+            RESOURCE REQUEST MENU               
+================================================
+1. Request Resources
+2. Display Current State
+3. Run Safety Check Again
+4. Exit
+
+Enter your choice: 2
+
+Current AVAILABLE (Work) vector = ( 3 3 2 )
+
+REMAINING NEED MATRIX (Maximum - Allocation)
+
+Process	Res1	Res2	Res3	
+P1	7	4	3	
+P2	1	2	2	
+P3	6	0	0	
+P4	2	2	0	
+P5	2	2	2	
+
+================================================
+            RESOURCE REQUEST MENU               
+================================================
+1. Request Resources
+2. Display Current State
+3. Run Safety Check Again
+4. Exit
+
+Enter your choice: 1
+
+Which process is requesting resources? (1 to 5): 2
+
+Enter resource request for Process P2:
+Units of Res1: 2 2 1
+Units of Res2: Units of Res3: 
+REQUEST REJECTED!
+This request exceeds the process's remaining Need.
+
+================================================
+            RESOURCE REQUEST MENU               
+================================================
+1. Request Resources
+2. Display Current State
+3. Run Safety Check Again
+4. Exit
+
+Enter your choice: 3
+
+Starting Work vector = ( 3 3 2 )
+
+P2 can complete because Need <= Work
+Work before P2 completes: ( 3 3 2 )
+P2 releases its allocated resources.
+Updated Work vector: ( 5 3 2 )
+
+P4 can complete because Need <= Work
+Work before P4 completes: ( 5 3 2 )
+P4 releases its allocated resources.
+Updated Work vector: ( 5 3 4 )
+
+P5 can complete because Need <= Work
+Work before P5 completes: ( 5 3 4 )
+P5 releases its allocated resources.
+Updated Work vector: ( 7 4 5 )
+
+P1 can complete because Need <= Work
+Work before P1 completes: ( 7 4 5 )
+P1 releases its allocated resources.
+Updated Work vector: ( 7 5 5 )
+
+P3 can complete because Need <= Work
+Work before P3 completes: ( 7 5 5 )
+P3 releases its allocated resources.
+Updated Work vector: ( 10 5 7 )
+
+====================================
+THE SYSTEM IS IN A SAFE STATE
+Safe Execution Order: P2 -> P4 -> P5 -> P1 -> P3
+====================================
+
+================================================
+            RESOURCE REQUEST MENU               
+================================================
+1. Request Resources
+2. Display Current State
+3. Run Safety Check Again
+4. Exit
+
+Enter your choice: 4
+
+Exiting Banker's Algorithm Simulation. Goodbye!
+[24bcs053@mepcolinux ex6]$exit
+exit
+
+Script done on Wednesday 09 September 2026 03:22:55 PM IST
+
