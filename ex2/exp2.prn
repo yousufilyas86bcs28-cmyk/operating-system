@@ -1,0 +1,161 @@
+
+[24bcs051@mepcolinux ex2]$cat program1.c
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/wait.h>
+
+int main()
+{
+    int fd[2],n;
+    char msg[]="Hello from Parent Process",buf[100];
+
+    pipe(fd);
+    if(fork()==0)
+    {
+        close(fd[1]);
+        n=read(fd[0],buf,99);
+        buf[n]='\0';
+        printf("Child received: %s\n",buf);
+        close(fd[0]);
+    }
+    else
+    {
+        close(fd[0]);
+        printf("Parent sending :%s\n",msg);
+        write(fd[1],msg,strlen(msg)+1);
+        close(fd[1]);
+        wait(NULL);
+    }
+    return 0;
+}
+[24bcs051@mepcolinux ex2]$./1_op
+Parent sending :Hello from Parent Process
+Child received: Hello from Parent Process
+
+[24bcs051@mepcolinux ex2]$cat lcm.c
+#include <stdio.h>
+#include <unistd.h>
+
+int main()
+{
+    int fd[2],n[2],a,b,t,g;
+    pipe(fd);
+
+    if(fork())
+    {
+        close(fd[0]);
+        printf("P1 - Enter two numbers: ");
+        scanf("%d%d",&n[0],&n[1]);
+        write(fd[1],n,sizeof(n));
+        close(fd[1]);
+    }
+    else
+    {
+        close(fd[1]);
+        read(fd[0],n,sizeof(n));
+        close(fd[0]);
+
+        a=n[0]; b=n[1];
+
+        int x=a,y=b;
+        while(y)
+        {
+            t=y;
+            y=x%y;
+            x=t;
+        }
+        g=x;
+
+        printf("LCM = %d\n",(a*b)/g);
+    }
+    return 0;
+}
+[24bcs051@mepcolinux ex2]$./2_op
+P1 - Enter two numbers: 2 3
+LCM = 6
+[24bcs051@mepcolinux ex2]$./2_op
+P1 - Enter two numbers: 5 10
+LCM = 10
+
+[24bcs051@mepcolinux ex2]$cat 2ndmax.c
+#include<stdio.h>
+#include<unistd.h>
+#include<sys/wait.h>
+#include<limits.h>
+
+int main()
+{
+ int p[2],q[2],a[100],o[100],n,c,i;
+ pipe(p);pipe(q);
+
+ if(!fork())
+ {
+  close(p[0]);
+  scanf("%d",&n);
+  for(i=0;i<n;i++)scanf("%d",&a[i]);
+  write(p[1],&n,4);write(p[1],a,n*4);
+  return 0;
+ }
+ wait(0);
+
+ if(!fork())
+ {
+  close(p[1]);close(q[0]);
+  read(p[0],&n,4);read(p[0],a,n*4);
+  c=0;
+  for(i=0;i<n;i++)if(a[i]%2)o[c++]=a[i];
+  write(q[1],&c,4);write(q[1],o,c*4);
+  return 0;
+ }
+ wait(0);
+
+ if(!fork())
+ {
+  int x=INT_MIN,y=INT_MIN;
+  close(q[1]);
+  read(q[0],&c,4);read(q[0],o,c*4);
+  for(i=0;i<c;i++)
+   if(o[i]>x)y=x,x=o[i];
+   else if(o[i]>y&&o[i]!=x)y=o[i];
+  if(c<2||y==INT_MIN)printf("Second Maximum not found");
+  else printf("Second Maximum = %d",y);
+  return 0;
+ }
+ wait(0);
+}
+[24bcs051@mepcolinux ex2]$./3_op
+
+P2 Process
+Enter the number of elements: 6
+Enter the array elements:
+7 2 3 4 5 9
+P2: Array sent to P1 through Pipe1
+
+P1 Process
+P1: Received array from P2
+P1: Odd elements are: 7 3 5 9
+P1: Sent odd elements to P3 through Pipe2
+
+P3 Process
+P3: Received odd elements from P1
+P3: Second Maximum element = 7
+[24bcs051@mepcolinux ex2]$./3_op
+
+P2 Process
+Enter the number of elements: 7
+Enter the array elements:
+8 2 3 4 5 10 11
+P2: Array sent to P1 through Pipe1
+
+P1 Process
+P1: Received array from P2
+P1: Odd elements are: 3 5 11
+P1: Sent odd elements to P3 through Pipe2
+
+P3 Process
+P3: Received odd elements from P1
+P3: Second Maximum element = 5
+
+[24bcs051@mepcolinux ex2]$exit
+exit
