@@ -1,0 +1,331 @@
+Script started on Wed Sep 16 14:10:16 2026
+[24bcs051@mepcolinux ex7]$cat memory.c
+#include <stdio.h>
+#include <stdbool.h>
+
+struct MemoryBlock
+{
+    int capacity;
+    int id;
+    bool used;
+};
+
+struct Job
+{
+    int required;
+    int assignedBlock;
+};
+
+void assignMemory(struct MemoryBlock blocks[], struct Job jobs[], int jobCount, int blockCount)
+{
+    int i, j;
+
+    for (i = 0; i < jobCount; i++)
+    {
+        jobs[i].assignedBlock = -1;
+
+        for (j = 0; j < blockCount; j++)
+        {
+            if (blocks[j].used == false &&
+                blocks[j].capacity >= jobs[i].required)
+            {
+                jobs[i].assignedBlock = blocks[j].id;
+                blocks[j].used = true;
+                break;
+            }
+        }
+    }
+}
+
+void showResult(struct MemoryBlock blocks[], struct Job jobs[],
+                int jobCount, int blockCount)
+{
+    int internalFrag = 0;
+    int externalFrag = 0;
+    int i, j;
+
+    printf("\n--------------------------------------------------\n");
+    printf("Process\tRequired\tBlock\tWasted Space\n");
+    printf("--------------------------------------------------\n");
+
+    for (i = 0; i < jobCount; i++)
+    {
+        printf("P%d\t%d\t\t", i + 1, jobs[i].required);
+
+        if (jobs[i].assignedBlock == -1)
+        {
+            printf("Not Allocated\t-\n");
+        }
+        else
+        {
+            int blockCapacity = 0;
+
+            for (j = 0; j < blockCount; j++)
+            {
+                if (blocks[j].id == jobs[i].assignedBlock)
+                {
+                    blockCapacity = blocks[j].capacity;
+                    break;
+                }
+            }
+
+            int waste = blockCapacity - jobs[i].required;
+
+            internalFrag += waste;
+
+            printf("B%d\t\t%d\n",
+                   jobs[i].assignedBlock, waste);
+        }
+    }
+
+    for (i = 0; i < blockCount; i++)
+    {
+        if (blocks[i].used == false)
+        {
+            externalFrag += blocks[i].capacity;
+        }
+    }
+
+    printf("--------------------------------------------------\n");
+    printf("Total Internal Fragmentation : %d\n", internalFrag);
+    printf("Total External Fragmentation : %d\n", externalFrag);
+    printf("--------------------------------------------------\n");
+}
+
+int main()
+{
+    int blockCount, jobCount, option;
+    int i, j;
+    char choice;
+
+    struct MemoryBlock original[20];
+
+    printf("Enter number of memory blocks: ");
+    scanf("%d", &blockCount);
+
+    printf("\nEnter memory block sizes:\n");
+
+    for (i = 0; i < blockCount; i++)
+    {
+        printf("Block %d: ", i + 1);
+        scanf("%d", &original[i].capacity);
+
+        original[i].id = i + 1;
+        original[i].used = false;
+    }
+
+    printf("\nEnter number of processes: ");
+    scanf("%d", &jobCount);
+
+    struct Job jobs[20];
+    struct Job tempJobs[20]; 
+
+    printf("\nEnter process sizes:\n");
+
+    for (i = 0; i < jobCount; i++)
+    {
+        printf("Process %d: ", i + 1);
+        scanf("%d", &jobs[i].required);
+        jobs[i].assignedBlock = -1;
+    }
+
+    do
+    {
+        printf("\n========== MEMORY ALLOCATION ==========\n");
+        printf("1. First Fit\n");
+        printf("2. Best Fit\n");
+        printf("3. Worst Fit\n");
+        printf("4. Exit\n");
+        printf("========================================\n");
+
+        printf("Choose allocation method: ");
+        scanf("%d", &option);
+
+        if (option == 4) {
+            printf("Exiting program.\n");
+            break;
+        }
+
+        struct MemoryBlock blocks[20];
+
+        for (i = 0; i < blockCount; i++)
+        {
+            blocks[i] = original[i];
+        }
+
+        for (i = 0; i < jobCount; i++)
+        {
+            tempJobs[i] = jobs[i];
+        }
+
+        switch (option)
+        {
+            // FIRST FIT
+            case 1:
+                assignMemory(blocks, tempJobs, jobCount, blockCount);
+                printf("\n=============FIRST FIT ALLOCATION ============================\n");
+                showResult(blocks, tempJobs, jobCount, blockCount);
+                break;
+
+            // BEST FIT
+            case 2:
+               
+                for (i = 0; i < blockCount - 1; i++)
+                {
+                    for (j = i + 1; j < blockCount; j++)
+                    {
+                        if (blocks[i].capacity > blocks[j].capacity)
+                        {
+                            struct MemoryBlock temp;
+                            temp = blocks[i];
+                            blocks[i] = blocks[j];
+                            blocks[j] = temp;
+                        }
+                    }
+                }
+
+                assignMemory(blocks, tempJobs, jobCount, blockCount);
+                printf("\n================= BEST FIT ALLOCATION=========================\n");
+                showResult(blocks, tempJobs, jobCount, blockCount);
+                break;
+
+            // WORST FIT
+            case 3:
+                
+                for (i = 0; i < blockCount - 1; i++)
+                {
+                    for (j = i + 1; j < blockCount; j++)
+                    {
+                        if (blocks[i].capacity < blocks[j].capacity)
+                        {
+                            struct MemoryBlock temp;
+                            temp = blocks[i];
+                            blocks[i] = blocks[j];
+                            blocks[j] = temp;
+                        }
+                    }
+                }
+
+                assignMemory(blocks, tempJobs, jobCount, blockCount);
+                printf("\n=================WORST FIT ALLOCATION =======================\n");
+                showResult(blocks, tempJobs, jobCount, blockCount);
+                break;
+
+            default:
+                printf("\nInvalid allocation method selected!\n");
+        }
+
+        if (option >= 1 && option <= 3) {
+            printf("\nDo you want to try another method? (y/n): ");
+            scanf(" %c", &choice);
+        } else {
+            choice = 'y'; 
+        }
+
+    } while (choice == 'y' || choice == 'Y');
+    return 0;
+}
+
+[24bcs051@mepcolinux ex7]$g++ memory.c
+[24bcs051@mepcolinux ex7]$./a.out
+Enter number of memory blocks: 5
+
+Enter memory block sizes:
+Block 1: 200
+Block 2: 110
+Block 3: 35
+Block 4: 50
+Block 5: 80
+
+Enter number of processes: 4
+
+Enter process sizes:
+Process 1: 39
+Process 2: 100
+Process 3: 105
+Process 4: 70
+
+========== MEMORY ALLOCATION ==========
+1. First Fit
+2. Best Fit
+3. Worst Fit
+4. Exit
+========================================
+Choose allocation method: 1
+
+=============FIRST FIT ALLOCATION ============================
+
+--------------------------------------------------
+Process	Required	Block	Wasted Space
+--------------------------------------------------
+P1	39		B1		161
+P2	100		B2		10
+P3	105		Not Allocated	-
+P4	70		B5		10
+--------------------------------------------------
+Total Internal Fragmentation : 181
+Total External Fragmentation : 85
+--------------------------------------------------
+
+Do you want to try another method? (y/n): y
+
+========== MEMORY ALLOCATION ==========
+1. First Fit
+2. Best Fit
+3. Worst Fit
+4. Exit
+========================================
+Choose allocation method: 2
+
+================= BEST FIT ALLOCATION=========================
+
+--------------------------------------------------
+Process	Required	Block	Wasted Space
+--------------------------------------------------
+P1	39		B4		11
+P2	100		B2		10
+P3	105		B1		95
+P4	70		B5		10
+--------------------------------------------------
+Total Internal Fragmentation : 126
+Total External Fragmentation : 35
+--------------------------------------------------
+
+Do you want to try another method? (y/n): y
+
+========== MEMORY ALLOCATION ==========
+1. First Fit
+2. Best Fit
+3. Worst Fit
+4. Exit
+========================================
+Choose allocation method: 3
+
+=================WORST FIT ALLOCATION =======================
+
+--------------------------------------------------
+Process	Required	Block	Wasted Space
+--------------------------------------------------
+P1	39		B1		161
+P2	100		B2		10
+P3	105		Not Allocated	-
+P4	70		B5		10
+--------------------------------------------------
+Total Internal Fragmentation : 181
+Total External Fragmentation : 85
+--------------------------------------------------
+
+Do you want to try another method? (y/n): y
+
+========== MEMORY ALLOCATION ==========
+1. First Fit
+2. Best Fit
+3. Worst Fit
+4. Exit
+========================================
+Choose allocation method: 4
+Exiting program.
+[24bcs051@mepcolinux ex7]$exit
+exit
+
+Script done on Wed Sep 16 14:12:47 2026
