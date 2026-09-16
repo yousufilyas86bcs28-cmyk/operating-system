@@ -1,0 +1,175 @@
+Script started on Wednesday 09 September 2026 02:39:05 PM IST
+[24bcs053@mepcolinux ex5]$cat producer.c
+#include "imp.c"
+
+int main(void) {
+    union semaphore snum;
+    int sid, in, num, *buf, s;
+    unsigned short a[3];
+    
+    in = 0;
+    
+    s = shmget((key_t)24038, sizeof(int) * BUFFER_SIZE, IPC_CREAT | 0666);
+    
+    if (s == -1) {
+        perror("shmget");
+    } else {
+        buf = (int *)shmat(s, NULL, 0);
+        if (buf == (void *)-1) {
+            perror("shmat");
+        } else {
+            sid = semget((key_t)24039, 3, IPC_CREAT | 0666);
+            if (sid == -1) {
+                perror("semget");
+            } else {
+                a[0] = 1;        
+                a[1] = 0;           
+                a[2] = BUFFER_SIZE;
+                snum.array = a;
+                semctl(sid, 0, SETALL, snum);
+                
+                while (1) {
+                    printf("Enter the data || enter 0 to exit: ");
+                    if (scanf("%d", &num) != 1) break;
+                    
+                    wait_sem(sid, empty);
+                    wait_sem(sid, mutex);
+                    
+                    buf[in % BUFFER_SIZE] = num;
+                    in++;
+                    
+                    signal_sem(sid, mutex);
+                    signal_sem(sid, full);
+                    
+                    if (num == 0) {
+                        printf("Sent termination signal  to consumer. Exiting...\n");
+                        break;
+                    }
+                }
+                
+                shmdt(buf);
+            }
+        }
+    }
+    return 0;
+}
+[24bcs053@mepcolinux ex5]$cat consumer.c
+#include "imp.c"
+
+int main(void) {
+    int sid, d, out, num, *buf, s;
+    out = 0;
+    
+    s = shmget((key_t)24038, sizeof(int) * BUFFER_SIZE, 0666);
+    if (s == -1) {
+        perror("shmget");
+    } else {
+        buf = (int *)shmat(s, NULL, 0);
+        if (buf == (void *)-1) {
+            perror("shmat");
+        } else {
+            sid = semget((key_t)24039, 3, 0666);
+            if (sid == -1) {
+                perror("semget");
+            } else {
+                printf("Data Read Pipeline Started:\n");
+               
+                while (1) {
+                    wait_sem(sid, full);
+                    wait_sem(sid, mutex);
+                    
+                    num = buf[out % BUFFER_SIZE];
+                    out++;
+                    
+                    signal_sem(sid, mutex);
+                    signal_sem(sid, empty);
+                    
+                    if (num == 0) {
+                        printf("Received termination element so Stopping consumer...\n");
+                        break;
+                    }
+                    
+                    printf("Data[%d]: %d\n", out, num);
+                }
+                
+                shmdt(buf);
+                
+                d = semctl(sid, 0, IPC_RMID);
+                d = shmctl(s, IPC_RMID, NULL);
+                printf("Kernel clean up complete.\n");
+            }
+        }
+    }
+    return 0;
+}
+[24bcs053@mepcolinux ex5]$cat semaphore.h
+#ifndef SEMAPHORE_H
+#define SEMAPHORE_H
+
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+#include <unistd.h>
+#include <stdlib.h>
+
+#define BUFFER_SIZE 5
+#define mutex 0
+#define full 1
+#define empty 2
+
+union semaphore {
+    int val;
+    struct semid_ds *buf;
+    struct seminfo *__buf;
+    unsigned short *array;
+};
+
+void wait_sem(int sid, int sno);
+void signal_sem(int sid, int sno);
+
+#endif
+[24bcs053@mepcolinux ex5]$cat imp.c
+#include "semaphore.h"
+
+void wait_sem(int sid, int sno) {
+    struct sembuf s;
+    s.sem_num = sno;
+    s.sem_op = -1;
+    s.sem_flg = SEM_UNDO;
+    if (semop(sid, &s, 1) == -1) {
+        perror("wait semop failed");
+    }
+}
+
+void signal_sem(int sid, int sno) {
+    struct sembuf s;
+    s.sem_num = sno;
+    s.sem_op = 1;
+    s.sem_flg = SEM_UNDO;
+    if (semop(sid, &s, 1) == -1) {
+        perror("signal semop failed");
+    }
+}
+[24bcs053@mepcolinux ex5]$g++ producer.c
+[24bcs053@mepcolinux ex5]$./a.out
+Enter the data || enter 0 to exit: 2
+Enter the data || enter 0 to exit: 3
+Enter the data || enter 0 to exit: 4
+Enter the data || enter 0 to exit: 5
+Enter the data || enter 0 to exit: 1
+Enter the data || enter 0 to exit: 0
+Sending termination signal to consumer.exiting...
+[24bcs053@mepcolinux ex5]$g++ consumer.c
+[24bcs053@mepcolinux ex5]$./a.out
+Data Read Pipeline Started:
+Data[1]: 2
+Data[2]: 3
+Data[3]: 4
+Data[4]: 5
+Data[5]: 1
+Received termination element so Stopping consumer...
+termination signal  to consumer. Exiting...
+[24bcs053@mepcolinux ex5]$exit
+exit
